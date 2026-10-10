@@ -9,7 +9,7 @@
 // core, and a consumer that aliases @ptc-org/* -> npm:@trishchuk/* ends up with exactly one copy of core
 // (two copies silently break nestjs-query's shared metadata and instanceof checks).
 //
-// Usage: node tools/publish-trishchuk.mjs [--dry-run] [--skip-build] [core query-graphql query-typeorm ...]
+// Usage: node tools/publish-trishchuk.mjs [--dry-run] [--skip-build] [--otp=<2fa code>] [core query-graphql query-typeorm ...]
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,6 +18,7 @@ const FORK_REPO = 'https://github.com/x51xxx/nestjs-query'
 const args = process.argv.slice(2)
 const dryRun = args.includes('--dry-run')
 const skipBuild = args.includes('--skip-build')
+const otp = args.find((a) => a.startsWith('--otp='))
 const requested = args.filter((a) => !a.startsWith('--'))
 const projects = requested.length ? requested : ['core', 'query-graphql', 'query-typeorm']
 // core goes first: every other package depends on it.
@@ -28,7 +29,8 @@ const forkName = (name) => name.replace(/^@ptc-org\//, '@trishchuk/')
 const published = (name, version) => {
   try {
     return execFileSync('npm', ['view', `${name}@${version}`, 'version', '--registry=https://registry.npmjs.org'], {
-      encoding: 'utf8'
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
     }).trim() === version
   } catch {
     return false
@@ -72,5 +74,5 @@ for (const { dir, pkg } of manifests) {
     console.log(`skip ${pkg.name}@${pkg.version}: already on npm`)
     continue
   }
-  run('npm', ['publish', dir, '--access', 'public', '--registry=https://registry.npmjs.org', ...(dryRun ? ['--dry-run'] : [])])
+  run('npm', ['publish', dir, '--access', 'public', '--registry=https://registry.npmjs.org', ...(dryRun ? ['--dry-run'] : []), ...(otp ? [otp] : [])])
 }

@@ -22,6 +22,14 @@ export type ColumnResolver = (field: string) => PgColumn
 
 /**
  * @internal
+ * Own-property lookup for the name-keyed maps (columns, relations) that filter, sort and aggregate keys index into.
+ * A plain `map[key]` also finds `constructor`, `toString` or `__proto__` on `Object.prototype`, which would let such a
+ * key past the "unknown field" guard and into the SQL builders.
+ */
+export const hasOwn = (record: object, key: PropertyKey): boolean => Object.prototype.hasOwnProperty.call(record, key) as boolean
+
+/**
+ * @internal
  * Runtime metadata for a single Drizzle table.
  *
  * Drizzle tables are plain objects with no decorator metadata, so everything the adapter needs (column lookup by
@@ -60,7 +68,7 @@ export class TableMeta<Entity> {
    * matters because Drizzle's operators accept `undefined` and would otherwise emit nonsense SQL.
    */
   public column(field: keyof Entity | string): PgColumn {
-    const column = this.columns[field as string]
+    const column = hasOwn(this.columns, field as string) ? this.columns[field as string] : undefined
 
     if (!column) {
       throw new BadRequestException(

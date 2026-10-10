@@ -84,14 +84,24 @@ describe('AggregateBuilder', () => {
     })
 
     it.each([
-      [GroupBy.DAY, `DATE("date_type")`],
-      [GroupBy.WEEK, `DATE(DATE_TRUNC('week', "date_type"))`],
-      [GroupBy.MONTH, `DATE(TO_CHAR("date_type", 'YYYY-mm-01'))`],
-      [GroupBy.YEAR, `DATE(TO_CHAR("date_type", 'YYYY-01-01'))`]
-    ])('should bucket dates by %s', (by, expected) => {
+      [GroupBy.DAY, 'day'],
+      [GroupBy.WEEK, 'week'],
+      [GroupBy.MONTH, 'month'],
+      [GroupBy.YEAR, 'year']
+    ])('should bucket dates by %s, keeping the column type', (by, unit) => {
       const { selection } = aggregateBuilder.build({ groupBy: [{ field: 'dateType', args: { by } }] })
 
-      expect(queryBuilder.select(selection).from(testTable).toSQL().sql).toBe(`select ${expected} from "test_entity"`)
+      expect(queryBuilder.select(selection).from(testTable).toSQL().sql).toBe(
+        `select CAST(DATE_TRUNC('${unit}', "date_type") AS timestamp) from "test_entity"`
+      )
+    })
+
+    it('should decode a bucketed date with the column`s own decoder', () => {
+      const { selection } = aggregateBuilder.build({ groupBy: [{ field: 'dateType', args: { by: GroupBy.DAY } }] })
+
+      // Drizzle's drivers decode by the selected column; without it a bucket comes back as a raw string, which
+      // GraphQL's DateTime scalar serializes to null. The real-driver behaviour is covered by the drizzle e2e.
+      expect((selection.agg_0 as unknown as { decoder: unknown }).decoder).toBe(tableMeta.columns.dateType)
     })
   })
 })

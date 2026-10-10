@@ -348,6 +348,31 @@ describe('Drizzle adapter (e2e)', () => {
       )
       expect(byCompleted).toEqual({ true: 1, false: 4 })
     })
+
+    it('should bucket a date groupBy into a DateTime, not null', async () => {
+      const body = await graphql(
+        app,
+        `
+          {
+            todoItemAggregate(filter: {}) {
+              groupBy {
+                created(by: DAY)
+              }
+              count {
+                id
+              }
+            }
+          }
+        `
+      )
+
+      expect(body.errors).toBeUndefined()
+      // Every fixture row is inserted with `created = now()`, so they all land in one bucket at midnight.
+      const groups = asList<{ groupBy: { created: string | null }; count: { id: number } }>(body.data.todoItemAggregate)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].count.id).toBe(5)
+      expect(groups[0].groupBy.created).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/)
+    })
   })
 
   describe('mutations', () => {

@@ -19,6 +19,7 @@
     "baseUrl": ".",
     "paths": {
       "@ptc-org/nestjs-query-core": ["packages/core/src/index.ts"],
+      "@ptc-org/nestjs-query-drizzle": ["packages/query-drizzle/src/index.ts"],
       "@ptc-org/nestjs-query-graphql": ["packages/query-graphql/src/index.ts"],
       "@ptc-org/nestjs-query-mongoose": ["packages/query-mongoose/src/index.ts"],
       "@ptc-org/nestjs-query-sequelize": ["packages/query-sequelize/src/index.ts"],

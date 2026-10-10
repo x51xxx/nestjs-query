@@ -681,6 +681,56 @@ describe('Drizzle adapter (e2e)', () => {
       expect(body.data.tag).toEqual({ name: 'Urgent', todoItems: { totalCount: 2 } })
     })
 
+    it('should filter a relation connection by the related table`s own relation', async () => {
+      // `SubTaskFilter` offers `todoItem`, so the generated `subTasks` connection accepts it too.
+      const body = await graphql(
+        app,
+        `
+          {
+            todoItems(filter: { id: { in: [1, 2] } }, sorting: [{ field: id, direction: ASC }]) {
+              edges {
+                node {
+                  id
+                  subTasks(filter: { todoItem: { title: { eq: "Create Nest App" } } }) {
+                    totalCount
+                    edges {
+                      node {
+                        id
+                      }
+                    }
+                  }
+                  subTasksAggregate(filter: { todoItem: { title: { eq: "Create Nest App" } } }) {
+                    count {
+                      id
+                    }
+                  }
+                  tags(filter: { todoItems: { title: { eq: "Create Entity" } } }) {
+                    totalCount
+                  }
+                }
+              }
+            }
+          }
+        `
+      )
+
+      expect(body.errors).toBeUndefined()
+      const nodes = asList<
+        Edge<{
+          id: string
+          subTasks: { totalCount: number; edges: Edge<{ id: string }>[] }
+          subTasksAggregate: { count: { id: number } }[]
+          tags: { totalCount: number }
+        }>
+      >(body.data.todoItems.edges).map((edge) => edge.node)
+
+      expect(nodes.map((node) => node.subTasks.edges.map((edge) => edge.node.id))).toEqual([['1', '2', '3'], []])
+      expect(nodes.map((node) => node.subTasks.totalCount)).toEqual([3, 0])
+      expect(nodes.map((node) => node.subTasksAggregate[0]?.count.id ?? 0)).toEqual([3, 0])
+      // Tag "Urgent" (1) is on both items 1 and 2 ("Create Entity"), "Home" (2) only on item 1.
+      expect(nodes.map((node) => node.tags.totalCount)).toEqual([1, 2])
+    })
+
     it('should filter a relation', async () => {
       const body = await graphql(
         app,

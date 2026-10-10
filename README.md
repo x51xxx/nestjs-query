@@ -37,6 +37,7 @@ Nestjs-query is composed of multiple packages
 * [`@ptc-org/nestjs-query-graphql`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-graphql) - GraphQL resolvers, decorators, and CRUD endpoints.
 * [`@ptc-org/nestjs-query-rest`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-rest) - REST controllers, decorators, and CRUD endpoints.
 * [`@ptc-org/nestjs-query-mikro-orm`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-mikro-orm) - MikroORM persistence service.
+* [`@ptc-org/nestjs-query-drizzle`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-drizzle) - Drizzle ORM (PostgreSQL) persistence service.
 * [`@ptc-org/nestjs-query-mongoose`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-mongoose) - Mongoose persistence service.
 * [`@ptc-org/nestjs-query-sequelize`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-sequelize) - Sequelize persistence service.
 * [`@ptc-org/nestjs-query-typegoose`](https://github.com/TriPSs/nestjs-query/tree/master/packages/query-typegoose) - Typegoose persistence service.

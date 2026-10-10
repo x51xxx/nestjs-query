@@ -60,6 +60,10 @@
                   "persistence/typegoose/custom-service",
                   "persistence/typegoose/serialization"
                 ]
+              },
+              {
+                "group": "Drizzle",
+                "pages": ["persistence/drizzle/getting-started"]
               }
             ]
           },

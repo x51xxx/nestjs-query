@@ -217,6 +217,37 @@ describe('DrizzleQueryService', () => {
     })
   })
 
+  describe('Object.prototype keys', () => {
+    // JSON.parse creates an own `__proto__` key, which an object literal would not.
+    it.each(['constructor', 'toString', '__proto__'])('should reject a filter on "%s" as an unknown field', async (field) => {
+      await expect(service.query({ filter: JSON.parse(`{"${field}": {"eq": 1}}`) as never })).rejects.toThrow(BadRequestException)
+      expect(stub.captured).toHaveLength(0)
+    })
+
+    it('should reject sorting by a prototype key', async () => {
+      await expect(service.query({ sorting: [{ field: 'constructor' as never, direction: SortDirection.ASC }] })).rejects.toThrow(
+        BadRequestException
+      )
+      expect(stub.captured).toHaveLength(0)
+    })
+
+    it('should reject aggregating a prototype key', async () => {
+      await expect(service.aggregate({}, { count: [{ field: 'constructor' as never, args: {} }] })).rejects.toThrow(
+        BadRequestException
+      )
+      expect(stub.captured).toHaveLength(0)
+    })
+
+    it('should reject a relation option named after a prototype key', () => {
+      expect(
+        () =>
+          new DrizzleQueryService<TestEntityDTO>(stub.db, TestEntityDTO, 'testTable', testRelations, {
+            constructor: { foreignKeySide: 'target' as const }
+          })
+      ).toThrow('Unknown relationOptions for table "testTable": constructor')
+    })
+  })
+
   describe('#updateOne', () => {
     it('should reject when the update contains the id', async () => {
       await expect(service.updateOne(1, { id: 2 } as never)).rejects.toThrow('Id cannot be specified when updating')

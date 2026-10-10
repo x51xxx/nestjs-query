@@ -15,7 +15,7 @@ import { and, eq, inArray, or, SQL } from 'drizzle-orm'
 import type { TableRelationalConfig, TablesRelationalConfig } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 
-import { AggregateBuilder, FilterQueryBuilder, RelationMeta, TableMeta } from '../query'
+import { AggregateBuilder, FilterQueryBuilder, hasOwn, RelationMeta, TableMeta } from '../query'
 import { toDrizzleRelationsFilter } from '../query/drizzle-compat.utils'
 import { DrizzleDatabase, NestjsQueryDrizzleRelationOptions } from '../typings'
 
@@ -71,6 +71,8 @@ export abstract class RelationQueryService<Entity> {
   abstract getById(id: string | number, opts?: GetByIdOptions<Entity>): Promise<Entity>
 
   private readonly relationMetaCache = new Map<string, RelationMeta<Entity, unknown>>()
+
+  private readonly targetFilterQueryBuilders = new Map<string, FilterQueryBuilder<unknown>>()
 
   public async queryRelations<Relation>(
     RelationClass: Class<Relation>,
@@ -402,6 +404,45 @@ export abstract class RelationQueryService<Entity> {
   }
 
   /**
+   * The filter builder for a relation's target table. It resolves the target's *own* relations, because the
+   * generated schema offers them on a relation connection too (`TodoItem.subTasks(filter: SubTaskFilter)`, and
+   * `SubTaskFilter` has `todoItem`), and an authorizer's `relationFilter` may name one. Without the resolver such a
+   * key failed as an unknown column. Relation filters nested inside a relation filter stay unsupported, as on the
+   * root query (see `WhereBuilder.relationExists`).
+   */
+  private targetFilterQueryBuilder<Relation>(relationMeta: RelationMeta<Entity, Relation>): FilterQueryBuilder<Relation> {
+    let builder = this.targetFilterQueryBuilders.get(relationMeta.relationName)
+
+    if (!builder) {
+      const { targetMeta } = relationMeta
+      const targetConfig = this.relations[targetMeta.tableName]
+      const targetRelationMetas = new Map<string, RelationMeta<unknown, unknown>>()
+
+      builder = new FilterQueryBuilder<Relation>(targetMeta, (field) => {
+        if (!hasOwn(targetConfig.relations, field)) {
+          return undefined
+        }
+
+        let targetRelationMeta = targetRelationMetas.get(field)
+        if (!targetRelationMeta) {
+          targetRelationMeta = new RelationMeta<Relation, unknown>(
+            targetMeta,
+            field,
+            targetConfig,
+            this.relations
+          ) as RelationMeta<unknown, unknown>
+          targetRelationMetas.set(field, targetRelationMeta)
+        }
+
+        return targetRelationMeta
+      }) as FilterQueryBuilder<unknown>
+      this.targetFilterQueryBuilders.set(relationMeta.relationName, builder)
+    }
+
+    return builder as FilterQueryBuilder<Relation>
+  }
+
+  /**
    * Loads a relation for every supplied parent in one query, keyed by the original parent object references so
    * `query-graphql`'s dataloader can look results up by identity.
    */
@@ -419,7 +460,7 @@ export abstract class RelationQueryService<Entity> {
 
     const { field: pkField, column: pkColumn } = this.tableMeta.primaryKey
     const parentIds = entities.map((entity) => (entity as Record<string, unknown>)[pkField])
-    const targetFilterQueryBuilder = new FilterQueryBuilder<Relation>(relationMeta.targetMeta)
+    const targetFilterQueryBuilder = this.targetFilterQueryBuilder(relationMeta)
 
     // Drizzle aliases tables inside the relational query builder, so conditions must be built from the table
     // reference it hands to these callbacks rather than from the original column objects.
@@ -494,7 +535,7 @@ export abstract class RelationQueryService<Entity> {
       conditions.push(relationMeta.predefinedWhere)
     }
 
-    const filterClause = new FilterQueryBuilder<Relation>(relationMeta.targetMeta).whereClause(filter)
+    const filterClause = this.targetFilterQueryBuilder(relationMeta).whereClause(filter)
     if (filterClause) {
       conditions.push(filterClause)
     }
@@ -539,7 +580,7 @@ export abstract class RelationQueryService<Entity> {
       conditions.push(relationMeta.predefinedWhere)
     }
 
-    const filterClause = new FilterQueryBuilder<Relation>(relationMeta.targetMeta).whereClause(filter)
+    const filterClause = this.targetFilterQueryBuilder(relationMeta).whereClause(filter)
     if (filterClause) {
       conditions.push(filterClause)
     }
@@ -572,7 +613,7 @@ export abstract class RelationQueryService<Entity> {
   ): Promise<Record<string, unknown>[]> {
     const { targetMeta } = relationMeta
     const conditions: SQL[] = [inArray(targetMeta.primaryKey.column, relationIds)]
-    const filterClause = new FilterQueryBuilder<Relation>(targetMeta).whereClause(relationFilter)
+    const filterClause = this.targetFilterQueryBuilder(relationMeta).whereClause(relationFilter)
 
     if (relationMeta.predefinedWhere) {
       conditions.push(relationMeta.predefinedWhere)
@@ -698,7 +739,7 @@ export abstract class RelationQueryService<Entity> {
     relationMeta: RelationMeta<Entity, Relation>,
     relationFilter?: Filter<Relation>
   ): SQL | undefined {
-    const filterClause = new FilterQueryBuilder<Relation>(relationMeta.targetMeta).whereClause(relationFilter)
+    const filterClause = this.targetFilterQueryBuilder(relationMeta).whereClause(relationFilter)
     const clauses = [relationMeta.predefinedWhere, filterClause].filter((clause): clause is SQL => !!clause)
 
     return clauses.length ? and(...clauses) : undefined

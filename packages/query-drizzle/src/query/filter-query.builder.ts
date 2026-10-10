@@ -29,8 +29,7 @@ export class FilterQueryBuilder<Entity> {
   constructor(
     readonly tableMeta: TableMeta<Entity>,
     /**
-     * Supplied only where the queried table's own relations are addressable, i.e. the root query path. Relation
-     * filters reach a table through its own service, never through another table's relation query.
+     * Resolves a filter key naming one of the queried table's own relations. Without it every key must be a column.
      */
     resolveRelation?: RelationResolver,
     readonly whereBuilder: WhereBuilder<Entity> = new WhereBuilder<Entity>(tableMeta, undefined, resolveRelation)

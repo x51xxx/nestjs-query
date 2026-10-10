@@ -22,7 +22,7 @@ import { and, eq, SQL } from 'drizzle-orm'
 
 import type { TableRelationalConfig, TablesRelationalConfig } from 'drizzle-orm'
 
-import { AggregateBuilder, FilterQueryBuilder, RelationMeta, TableMeta } from '../query'
+import { AggregateBuilder, FilterQueryBuilder, hasOwn, RelationMeta, TableMeta } from '../query'
 import { DrizzleDatabase, NestjsQueryDrizzleRelationOptions } from '../typings'
 import { RelationQueryService } from './relation-query.service'
 
@@ -94,7 +94,9 @@ export class DrizzleQueryService<Entity>
       )
     }
 
-    const unknownRelationOptions = Object.keys(relationOptions).filter((relationName) => !tableConfig.relations[relationName])
+    const unknownRelationOptions = Object.keys(relationOptions).filter(
+      (relationName) => !hasOwn(tableConfig.relations, relationName)
+    )
     if (unknownRelationOptions.length) {
       throw new Error(
         `Unknown relationOptions for table "${tableName}": ${unknownRelationOptions.join(', ')}. ` +
@@ -111,7 +113,7 @@ export class DrizzleQueryService<Entity>
     // Lazy: `getRelationMeta` lives on the relation mixin and caches, and the guard keeps plain column names off
     // that path entirely, so an unknown key still fails with the column error rather than the relation one.
     this.filterQueryBuilder = new FilterQueryBuilder<Entity>(this.tableMeta, (field) =>
-      this.tableConfig.relations[field] ? (this.getRelationMeta(field) as RelationMeta<unknown, unknown>) : undefined
+      hasOwn(this.tableConfig.relations, field) ? (this.getRelationMeta(field) as RelationMeta<unknown, unknown>) : undefined
     )
     this.aggregateBuilder = new AggregateBuilder<Entity>(this.tableMeta)
   }
@@ -296,7 +298,7 @@ export class DrizzleQueryService<Entity>
   private columnValues(update: DeepPartial<Entity>): Record<string, unknown> | undefined {
     const values = Object.fromEntries(
       Object.entries(update as Record<string, unknown>).filter(
-        ([field, value]) => Object.prototype.hasOwnProperty.call(this.tableMeta.columns, field) && value !== undefined
+        ([field, value]) => hasOwn(this.tableMeta.columns, field) && value !== undefined
       )
     )
 

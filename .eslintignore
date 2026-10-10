@@ -2,3 +2,5 @@
 **/node_modules
 coverage
 documentation
+# Runs in the k6 (Go) runtime, not Node: k6 globals and k6/* module imports are unknown to the repo's TS config.
+examples/drizzle/perf/k6

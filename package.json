@@ -9,7 +9,9 @@
   "scripts": {
     "docker": "docker compose -f ./examples/docker-compose.yml",
     "prepare": "husky install",
-    "test:e2e": "nx e2e examples"
+    "test:e2e": "nx e2e examples",
+    "perf:drizzle": "ts-node -r tsconfig-paths/register -P examples/tsconfig.app.json examples/drizzle/perf/main.ts",
+    "perf:drizzle:n-plus-one": "ts-node -r tsconfig-paths/register -P examples/tsconfig.app.json examples/drizzle/perf/main.ts --n-plus-one"
   },
   "resolutions": {
     "@apollo/gateway": "2.14.1",

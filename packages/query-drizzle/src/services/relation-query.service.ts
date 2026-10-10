@@ -286,7 +286,9 @@ export abstract class RelationQueryService<Entity> {
     // An empty list is legal here and means "detach everything".
     const rows = relationIds.length ? await this.loadRelationRows(relationMeta, relationIds, opts?.relationFilter, 'set on') : []
 
-    await this.detachAllFromParent(relationMeta, entity)
+    // Only the rows the caller may see are replaced, as in `query-typeorm`: an authorizer's `relationFilter` scopes
+    // the detach too, so rows outside it stay attached instead of being cleared on behalf of a user who cannot see them.
+    await this.detachAllFromParent(relationMeta, entity, opts?.relationFilter)
 
     if (relationIds.length) {
       if (side === 'through') {
@@ -314,7 +316,8 @@ export abstract class RelationQueryService<Entity> {
         await this.pointParentAtTarget(relationMeta, id, row)
         break
       case 'target':
-        // Single-valued from the parent's perspective, so the previous holder must be detached first.
+        // Single-valued from the parent's perspective, so the previous holder must be detached first -- whatever
+        // `relationFilter` says, or two rows would end up holding the same parent (`query-typeorm` behaves the same).
         await this.detachAllFromParent(relationMeta, entity)
         await this.pointTargetsAtParent(relationMeta, entity, [relationId])
         break
@@ -663,12 +666,22 @@ export abstract class RelationQueryService<Entity> {
     await this.db.delete(through.table).where(and(this.parentKeyClause(relationMeta, entity), matchesAnyRow))
   }
 
-  /** Detaches every currently related row from this parent, so a `set` can replace the whole collection. */
-  private async detachAllFromParent<Relation>(relationMeta: RelationMeta<Entity, Relation>, entity: Entity): Promise<void> {
+  /**
+   * Detaches every currently related row from this parent that the relation's predefined `where` and the optional
+   * `relationFilter` both match, so a `set` can replace the whole (visible) collection.
+   */
+  private async detachAllFromParent<Relation>(
+    relationMeta: RelationMeta<Entity, Relation>,
+    entity: Entity,
+    relationFilter?: Filter<Relation>
+  ): Promise<void> {
     const parentKey = this.parentKeyClause(relationMeta, entity)
+    const restriction = this.targetRestrictionClause(relationMeta, relationFilter)
 
     if (relationMeta.through) {
-      await this.db.delete(relationMeta.through.table).where(and(parentKey, this.junctionPredefinedWhereClause(relationMeta)))
+      await this.db
+        .delete(relationMeta.through.table)
+        .where(and(parentKey, this.junctionRestrictionClause(relationMeta, restriction)))
 
       return
     }
@@ -677,30 +690,44 @@ export abstract class RelationQueryService<Entity> {
 
     // Without the relation's own filter this would detach rows the relation never contained -- `setRelations` on
     // `completedSubTasks` would clear the foreign key of the incomplete sub tasks too.
-    await this.db.update(relationMeta.targetMeta.table).set(values).where(and(parentKey, relationMeta.predefinedWhere))
+    await this.db.update(relationMeta.targetMeta.table).set(values).where(and(parentKey, restriction))
+  }
+
+  /** `<predefined where> AND <relationFilter>` against the related table, or `undefined` when neither applies. */
+  private targetRestrictionClause<Relation>(
+    relationMeta: RelationMeta<Entity, Relation>,
+    relationFilter?: Filter<Relation>
+  ): SQL | undefined {
+    const filterClause = new FilterQueryBuilder<Relation>(relationMeta.targetMeta).whereClause(relationFilter)
+    const clauses = [relationMeta.predefinedWhere, filterClause].filter((clause): clause is SQL => !!clause)
+
+    return clauses.length ? and(...clauses) : undefined
   }
 
   /**
-   * The junction-table equivalent of {@link RelationMeta.predefinedWhere}: the filter is written against the target
-   * table, which a `DELETE FROM junction` never touches, so it has to arrive as a subquery on the junction's key.
+   * The junction-table form of a restriction written against the related table: a `DELETE FROM junction` never
+   * touches that table, so the restriction has to arrive as a subquery on the junction's key.
    */
-  private junctionPredefinedWhereClause<Relation>(relationMeta: RelationMeta<Entity, Relation>): SQL | undefined {
-    const { predefinedWhere, through } = relationMeta
+  private junctionRestrictionClause<Relation>(
+    relationMeta: RelationMeta<Entity, Relation>,
+    restriction: SQL | undefined
+  ): SQL | undefined {
+    const { through } = relationMeta
 
-    if (!predefinedWhere || !through) {
+    if (!restriction || !through) {
       return undefined
     }
 
     if (through.targetColumns.length !== 1) {
       throw new Error(
-        `Relation "${relationMeta.relationName}" declares a predefined "where" and joins through a composite key, ` +
-          'which @ptc-org/nestjs-query-drizzle cannot detach safely.'
+        `Relation "${relationMeta.relationName}" is filtered (by a predefined "where" or a relationFilter) and joins ` +
+          'through a composite key, which @ptc-org/nestjs-query-drizzle cannot detach safely.'
       )
     }
 
     return inArray(
       through.targetColumns[0],
-      this.db.select({ value: relationMeta.targetColumns[0] }).from(relationMeta.targetMeta.table).where(predefinedWhere)
+      this.db.select({ value: relationMeta.targetColumns[0] }).from(relationMeta.targetMeta.table).where(restriction)
     )
   }
 

@@ -1,0 +1,35 @@
+{
+  "name": "@ptc-org/nestjs-query-drizzle",
+  "version": "9.5.0",
+  "description": "Drizzle ORM adapter for @ptc-org/nestjs-query-core",
+  "homepage": "https://github.com/tripss/nestjs-query#readme",
+  "bugs": {
+    "url": "https://github.com/tripss/nestjs-query/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tripss/nestjs-query.git",
+    "directory": "packages/query-drizzle"
+  },
+  "license": "MIT",
+  "author": "doug-martin <doug@dougamartin.com>",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "directories": {
+    "lib": "src",
+    "test": "__tests__"
+  },
+  "files": [
+    "src/**"
+  ],
+  "dependencies": {
+    "tslib": "^2.8.1"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^9.0.0 || ^10.0.0 || ^11.0.0",
+    "drizzle-orm": ">=1.0.0-rc.4 <1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

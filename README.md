@@ -28,6 +28,7 @@ While working on projects in NestJS it was easy to get up and running with Graph
 * [TypeORM](https://nestjs-query.mintlify.site/persistence/typeorm/getting-started)
 * [Sequelize](https://nestjs-query.mintlify.site/persistence/sequelize/getting-started)
 * [GraphQL](https://nestjs-query.mintlify.site/graphql/getting-started)
+* [Performance](./PERFORMANCE.md) - Schema, index and service design guidance, with the measurements behind it ([українською](./PERFORMANCE.uk.md)).
 
 ## Packages
 

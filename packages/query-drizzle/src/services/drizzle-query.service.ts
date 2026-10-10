@@ -1,4 +1,4 @@
-import { ConflictException, MethodNotAllowedException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, MethodNotAllowedException, NotFoundException } from '@nestjs/common'
 import {
   AggregateOptions,
   AggregateQuery,
@@ -195,10 +195,16 @@ export class DrizzleQueryService<Entity>
 
   public async updateOne(id: string | number, update: DeepPartial<Entity>, opts?: UpdateOneOptions<Entity>): Promise<Entity> {
     this.ensureIdIsNotPresent(update)
+    const values = this.columnValues(update)
+
+    // Nothing to write is a no-op, as with query-typeorm's merge-and-save -- not an empty `SET` Postgres rejects.
+    if (!values) {
+      return this.getById(id, opts)
+    }
 
     const [updated] = (await this.db
       .update(this.tableMeta.table)
-      .set(update)
+      .set(values)
       .where(this.byIdClause(id, opts?.filter))
       .returning()) as Entity[]
 
@@ -211,10 +217,15 @@ export class DrizzleQueryService<Entity>
 
   public async updateMany(update: DeepPartial<Entity>, filter: Filter<Entity>): Promise<UpdateManyResponse> {
     this.ensureIdIsNotPresent(update)
+    const values = this.columnValues(update)
+
+    if (!values) {
+      throw new BadRequestException(`No ${this.EntityClass.name} fields to update.`)
+    }
 
     const updated = await this.db
       .update(this.tableMeta.table)
-      .set(update)
+      .set(values)
       .where(this.filterQueryBuilder.whereClause(filter))
       .returning({ id: this.tableMeta.primaryKey.column })
 
@@ -275,6 +286,21 @@ export class DrizzleQueryService<Entity>
     }
 
     return undefined
+  }
+
+  /**
+   * The update restricted to the table's columns, or `undefined` when nothing is left to write. Keys that are not
+   * columns are dropped (as `query-typeorm` does on save) instead of reaching Drizzle, which would render them into
+   * an invalid `SET` clause. `undefined` values are dropped too: Drizzle skips them, so they write nothing.
+   */
+  private columnValues(update: DeepPartial<Entity>): Record<string, unknown> | undefined {
+    const values = Object.fromEntries(
+      Object.entries(update as Record<string, unknown>).filter(
+        ([field, value]) => Object.prototype.hasOwnProperty.call(this.tableMeta.columns, field) && value !== undefined
+      )
+    )
+
+    return Object.keys(values).length ? values : undefined
   }
 
   private ensureIdIsNotPresent(record: DeepPartial<Entity>): void {

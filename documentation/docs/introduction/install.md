@@ -33,7 +33,7 @@ npm i @ptc-org/nestjs-query-drizzle @nestjs/common class-transformer drizzle-orm
 
 **NOTE** `@ptc-org/nestjs-query-drizzle` has opted for peer dependencies to follow nest conventions and to prevent duplicate installations of packages.
 
-**NOTE** The `drizzle-orm` peer range covers the v1 release candidates (`>=1.0.0-rc.4 <1.0.0`), and the adapter is verified against `1.0.0-rc.4` and the `1.0.0-rc.5` line. Pin an exact version in your own app: the v1 relations API this adapter builds on is still changing between RCs. PostgreSQL is the only supported dialect.
+**NOTE** The `drizzle-orm` peer range is `^1.0.0-rc.4`: the v1 release candidates from rc.4 on, and v1 itself once it ships. The adapter is verified against `1.0.0-rc.4` and the `1.0.0-rc.5` line. Pin an exact version in your own app: the v1 relations API this adapter builds on is still changing between RCs. PostgreSQL is the only supported dialect.
 
 ## @ptc-org/nestjs-query-sequelize
 

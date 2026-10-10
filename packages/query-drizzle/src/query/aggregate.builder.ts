@@ -33,6 +33,13 @@ export interface BuiltAggregate<Entity> {
   empty: () => AggregateResponse<Entity>[]
 }
 
+const DATE_TRUNC_UNITS: Partial<Record<GroupBy, string>> = {
+  [GroupBy.DAY]: 'day',
+  [GroupBy.WEEK]: 'week',
+  [GroupBy.MONTH]: 'month',
+  [GroupBy.YEAR]: 'year'
+}
+
 const toNumber = (value: unknown): number | null => (value === null || value === undefined ? null : Number(value))
 
 /**
@@ -108,24 +115,23 @@ export class AggregateBuilder<Entity> {
   }
 
   /**
-   * Date bucketing for `groupBy`, matching the Postgres branch of the TypeORM adapter's `AggregateBuilder`.
+   * Date bucketing for `groupBy`, with the same buckets as the Postgres branch of the TypeORM adapter's
+   * `AggregateBuilder` (ISO, Monday-based weeks).
+   *
+   * The bucket is cast back to the column's own SQL type and mapped with the column, so it comes back exactly like
+   * the column itself would. A bare `DATE(...)` returns a Postgres `date`, which Drizzle's node-postgres driver leaves
+   * as a string -- and GraphQL's `DateTime` serializes a string to `null`, so every bucketed group would be `null`.
    */
   private groupByExpression(groupByField: AggregateQueryGroupByField<Entity>): SQL | PgColumn {
     const column = this.tableMeta.column(groupByField.field)
+    const unit = DATE_TRUNC_UNITS[groupByField.args?.by]
 
-    switch (groupByField.args?.by) {
-      case GroupBy.YEAR:
-        return sql`DATE(TO_CHAR(${column}, 'YYYY-01-01'))`
-      case GroupBy.MONTH:
-        return sql`DATE(TO_CHAR(${column}, 'YYYY-mm-01'))`
-      case GroupBy.WEEK:
-        // ISO 8601 week (Monday based), matching the TypeORM adapter.
-        return sql`DATE(DATE_TRUNC('week', ${column}))`
-      case GroupBy.DAY:
-        return sql`DATE(${column})`
-      default:
-        return column
+    if (!unit) {
+      return column
     }
+
+    // `getSQLType()` comes from the schema definition, never from the query, so inlining it is safe.
+    return sql`CAST(DATE_TRUNC(${sql.raw(`'${unit}'`)}, ${column}) AS ${sql.raw(column.getSQLType())})`.mapWith(column)
   }
 
   private convert(rows: Record<string, unknown>[], entries: AggregateEntry<Entity>[]): AggregateResponse<Entity>[] {

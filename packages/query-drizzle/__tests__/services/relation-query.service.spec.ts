@@ -235,6 +235,47 @@ describe('RelationQueryService (Drizzle)', () => {
     })
   })
 
+  describe('relation filters on the related table', () => {
+    // `TestRelationDTO` has its own `testEntity` relation; the generated schema offers it on the
+    // `testRelations` connection's filter, and an authorizer's relationFilter may use it too.
+    const byParentName = { testEntity: { stringType: { eq: 'foo' } } } as never
+
+    it('should resolve them inside a relation read, correlated to the aliased related table', async () => {
+      stub.queueRows([[1, [relationRow(10, 1)]]])
+
+      await service.queryRelations(TestRelationDTO, 'testRelations', PARENT_A, { filter: byParentName })
+
+      const { sql, params } = stub.lastQuery()
+      expect(sql).toContain('exists (select 1 from "test_entity" as "__nq_rel" where')
+      expect(sql).toContain('"__nq_rel"."id" = "d1"."test_entity_id"')
+      expect(params).toContain('foo')
+    })
+
+    it('should resolve them in relation counts', async () => {
+      stub.queueRows([[1]])
+
+      await service.countRelations(TestRelationDTO, 'testRelations', PARENT_A, byParentName)
+
+      expect(stub.lastQuery().sql).toContain('"__nq_rel"."id" = "test_relation"."test_entity_id"')
+    })
+
+    it('should resolve them in batched relation aggregates', async () => {
+      stub.queueRows([])
+
+      await service.aggregateRelations(TestRelationDTO, 'testRelations', [PARENT_A, PARENT_B], byParentName, {
+        count: [{ field: 'id', args: {} }]
+      })
+
+      expect(stub.lastQuery().sql).toContain('exists (select 1 from "test_entity" as "__nq_rel" where')
+    })
+
+    it('should still reject a key that is neither a column nor a relation', async () => {
+      await expect(
+        service.countRelations(TestRelationDTO, 'testRelations', PARENT_A, { nope: { eq: 1 } } as never)
+      ).rejects.toThrow('Unknown field "nope"')
+    })
+  })
+
   describe('#findRelation', () => {
     it('should unwrap a `one` relation returned as a single object', async () => {
       const relationService = new DrizzleQueryService<TestRelationDTO>(

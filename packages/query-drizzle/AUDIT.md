@@ -79,9 +79,9 @@ Notes worth keeping:
 | H9  | High     | Date `groupBy` buckets were Postgres `date` values that node-postgres leaves as strings; GraphQL `DateTime` turned them into `null` (an error on the non-null field) | Fixed: `DATE_TRUNC` cast back to the column's SQL type and decoded with `.mapWith(column)`; e2e groups by `created(by: DAY)` |
 | M12 | Medium   | `updateOne(id, {})` failed with Drizzle's "No values to set" (500); a non-column key rendered an invalid `SET` | Fixed: updates are restricted to columns; an empty `updateOne` returns `getById`, an empty `updateMany` is a `BadRequestException` |
 | C3  | Medium   | Peer range `>=1.0.0-rc.4 <1.0.0` excluded the v1 release itself                                  | Fixed: `^1.0.0-rc.4`                                                                                      |
-| M13 | Medium   | Relation filters on a nested relation connection/count/aggregate (`subTasks(filter: { todoItem: ... })`) throw `Unknown field`, although the schema advertises them; the target-side `FilterQueryBuilder`s are built without a relation resolver | Open |
-| L10 | Low      | Object prototype keys (`constructor`, `__proto__`) pass the column whitelist in `TableMeta.column` and the relation checks; unreachable through validated GraphQL input | Open: switch the lookups to own-property checks |
-| L11 | Low      | `src/index.ts` exports the `@internal` builders (`AggregateBuilder`, `WhereBuilder`, ...), unlike `query-typeorm` | Open: decide before the upstream PR |
+| M13 | Medium   | Relation filters on a nested relation connection/count/aggregate (`subTasks(filter: { todoItem: ... })`) throw `Unknown field`, although the schema advertises them; the target-side `FilterQueryBuilder`s are built without a relation resolver | Fixed: the related table's filter builders resolve its own relations (cached per relation) into the same correlated `EXISTS` as the root query; e2e covers a connection, its `totalCount`, its aggregate and a through relation |
+| L10 | Low      | Object prototype keys (`constructor`, `__proto__`) pass the column whitelist in `TableMeta.column` and the relation checks; unreachable through validated GraphQL input | Fixed: own-property lookups (`hasOwn`) in `TableMeta.column`, `RelationMeta`, the root relation resolver, `relationOptions` validation and update values |
+| L11 | Low      | `src/index.ts` exports the `@internal` builders (`AggregateBuilder`, `WhereBuilder`, ...), unlike `query-typeorm` | Fixed: `src/index.ts` exports only the module, `DrizzleQueryService` and the typings |
 
 
 

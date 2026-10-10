@@ -21,7 +21,7 @@ implementation. Line numbers from the original report are intentionally omitted 
 | C1  | Critical | `useSoftDelete` was silently converted into a permanent delete                                       | Fixed: delete methods reject the option before SQL                                                        |
 | C2  | Critical | `relations` passed to `drizzle()` and `forFeature()` could disagree until the first relation request | Fixed: service constructor validates `db.query[tableName]`                                                |
 | H1  | High     | Relation filters reached an unknown column and produced a plain internal error                       | Superseded: relation filters are now supported (see 2026-09-07 below); a key that is neither a column nor a relation still throws `BadRequestException` |
-| H2  | High     | EmptyFilter compatibility compared against a guessed `Symbol.for()` value                            | Fixed: comparison uses the actual optional Drizzle export; peer range is `>=1.0.0-rc.4 <1.0.0` and the sentinel branch is unit-tested against a stubbed rc.5 export |
+| H2  | High     | EmptyFilter compatibility compared against a guessed `Symbol.for()` value                            | Fixed: comparison uses the actual optional Drizzle export; peer range is `^1.0.0-rc.4` (widened 2026-10-10, see C3) and the sentinel branch is unit-tested against a stubbed rc.5 export |
 | H3  | High     | Docs described Drizzle schema FK declarations as PostgreSQL runtime metadata                         | Fixed: docs, typings, fixtures and example schema use and describe `.references()` accurately             |
 | H5  | High     | Adding `.references()` everywhere moved coverage off the primary-key inference fallback              | Fixed: `inferredRelations`/`ambiguousRelations` fixtures declare no FKs, so both inference branches and the `'ambiguous'` rejection paths are exercised |
 | H6  | High     | Composite join keys took an untested branch when batching relation aggregates                        | Fixed: `compositeKeyRelations` fixture covers the OR-of-ANDs batching for counts and aggregates           |
@@ -71,7 +71,19 @@ Notes worth keeping:
   "has at least one matching row" without inflating `totalCount`. An empty relation filter (`{ subTasks: {} }`) is
   a no-op, matching TypeORM's left join.
 
-## Remaining follow-ups
+## 2026-10-10 — pre-PR review
+
+| ID  | Severity | Finding                                                                                          | Status                                                                                                    |
+| --- | -------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| H8  | High     | `setRelations` validated new ids against `relationFilter` but detached every related row, so an authorizer's filter did not protect rows the caller cannot see | Fixed: the detach applies `relationFilter` on both sides (junctions via a subquery), as `query-typeorm` does. `setRelation` on a has-one still detaches the previous holder unconditionally, also as TypeORM does |
+| H9  | High     | Date `groupBy` buckets were Postgres `date` values that node-postgres leaves as strings; GraphQL `DateTime` turned them into `null` (an error on the non-null field) | Fixed: `DATE_TRUNC` cast back to the column's SQL type and decoded with `.mapWith(column)`; e2e groups by `created(by: DAY)` |
+| M12 | Medium   | `updateOne(id, {})` failed with Drizzle's "No values to set" (500); a non-column key rendered an invalid `SET` | Fixed: updates are restricted to columns; an empty `updateOne` returns `getById`, an empty `updateMany` is a `BadRequestException` |
+| C3  | Medium   | Peer range `>=1.0.0-rc.4 <1.0.0` excluded the v1 release itself                                  | Fixed: `^1.0.0-rc.4`                                                                                      |
+| M13 | Medium   | Relation filters on a nested relation connection/count/aggregate (`subTasks(filter: { todoItem: ... })`) throw `Unknown field`, although the schema advertises them; the target-side `FilterQueryBuilder`s are built without a relation resolver | Open |
+| L10 | Low      | Object prototype keys (`constructor`, `__proto__`) pass the column whitelist in `TableMeta.column` and the relation checks; unreachable through validated GraphQL input | Open: switch the lookups to own-property checks |
+| L11 | Low      | `src/index.ts` exports the `@internal` builders (`AggregateBuilder`, `WhereBuilder`, ...), unlike `query-typeorm` | Open: decide before the upstream PR |
+
+
 
 1. Decide whether to add an adapter-level transaction abstraction for multi-statement relation replacement. Every
    driver an application would actually deploy (`node-postgres`, `postgres-js`, `neon-serverless`) supports

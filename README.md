@@ -28,6 +28,7 @@ While working on projects in nestjs it was very easy to get up and running with 
 * [Typeorm](https://tripss.github.io/nestjs-query/docs/persistence/typeorm/getting-started)
 * [Sequelize](https://tripss.github.io/nestjs-query/docs/persistence/sequelize/getting-started)
 * [GraphQL](https://tripss.github.io/nestjs-query/docs/graphql/resolvers)
+* [Performance](./PERFORMANCE.md) - Schema, index and service design guidance, with the measurements behind it ([українською](./PERFORMANCE.uk.md)).
 
 ## Packages
 

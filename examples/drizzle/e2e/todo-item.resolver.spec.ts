@@ -1,11 +1,14 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
+import { getQueryServiceToken, QueryService, SortDirection } from '@ptc-org/nestjs-query-core'
 import { DrizzleDatabase } from '@ptc-org/nestjs-query-drizzle'
 import { Pool } from 'pg'
 import request from 'supertest'
 
 import { AppModule } from '../src/app.module'
 import { DRIZZLE_DB } from '../src/schema'
+import { SubTaskDTO } from '../src/sub-task/dto/sub-task.dto'
+import { TodoItemDTO } from '../src/todo-item/dto/todo-item.dto'
 import { createSchema, refresh } from './fixtures'
 
 interface GraphqlResponse {
@@ -274,13 +277,21 @@ describe('Drizzle adapter (e2e)', () => {
     })
 
     it('should treat an empty relation filter as no constraint', async () => {
-      const body = await graphql(app, `{ todoItems(filter: { subTasks: {} }) { totalCount } }`)
+      const body = await graphql(
+        app,
+        `
+          {
+            todoItems(filter: { subTasks: {} }) {
+              totalCount
+            }
+          }
+        `
+      )
 
       expect(body.errors).toBeUndefined()
       // Parity with query-typeorm, whose left join keeps every parent when the relation filter carries no predicate.
       expect(body.data.todoItems.totalCount).toBe(5)
     })
-
 
     it('should aggregate', async () => {
       const body = await graphql(
@@ -337,6 +348,31 @@ describe('Drizzle adapter (e2e)', () => {
       )
       expect(byCompleted).toEqual({ true: 1, false: 4 })
     })
+
+    it('should bucket a date groupBy into a DateTime, not null', async () => {
+      const body = await graphql(
+        app,
+        `
+          {
+            todoItemAggregate(filter: {}) {
+              groupBy {
+                created(by: DAY)
+              }
+              count {
+                id
+              }
+            }
+          }
+        `
+      )
+
+      expect(body.errors).toBeUndefined()
+      // Every fixture row is inserted with `created = now()`, so they all land in one bucket at midnight.
+      const groups = asList<{ groupBy: { created: string | null }; count: { id: number } }>(body.data.todoItemAggregate)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].count.id).toBe(5)
+      expect(groups[0].groupBy.created).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/)
+    })
   })
 
   describe('mutations', () => {
@@ -367,6 +403,23 @@ describe('Drizzle adapter (e2e)', () => {
 
       const body = await graphql(app, `{ todoItem(id: ${id}) { id } }`)
       expect(body.errors[0].message).toContain(`Unable to find TodoItemDTO with id: ${id}`)
+    })
+
+    it('should treat an empty update as a no-op', async () => {
+      const body = await graphql(
+        app,
+        `
+          mutation {
+            updateOneTodoItem(input: { id: 1, update: {} }) {
+              id
+              title
+            }
+          }
+        `
+      )
+
+      expect(body.errors).toBeUndefined()
+      expect(body.data.updateOneTodoItem).toEqual({ id: '1', title: 'Create Nest App' })
     })
 
     it('should report how many rows updateMany touched', async () => {
@@ -755,6 +808,19 @@ describe('Drizzle adapter (e2e)', () => {
       // must still point at todo item 1.
       expect(result.subTasks.edges.map((edge) => edge.node.id)).toEqual(['2', '3', '4'])
       expect(result.completedSubTasks.edges.map((edge) => edge.node.id)).toEqual(['4'])
+    })
+
+    it('should leave rows outside the relationFilter attached when replacing a relation', async () => {
+      // What an authorizer passes down: the caller may only see completed sub tasks. Sub tasks 1-3 belong to todo
+      // item 1 and only 1 is completed; sub task 4 is todo item 2's completed one.
+      const todoItems = app.get<QueryService<TodoItemDTO>>(getQueryServiceToken(TodoItemDTO))
+
+      await todoItems.setRelations<SubTaskDTO>('subTasks', 1, [4], { relationFilter: { completed: { is: true } } })
+
+      const subTasks = await todoItems.queryRelations(SubTaskDTO, 'subTasks', { id: 1 } as TodoItemDTO, {
+        sorting: [{ field: 'id', direction: SortDirection.ASC }]
+      })
+      expect(subTasks.map((subTask) => subTask.id)).toEqual([2, 3, 4])
     })
 
     it('should repoint a belongs-to relation', async () => {

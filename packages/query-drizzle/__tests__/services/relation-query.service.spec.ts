@@ -711,6 +711,35 @@ describe('RelationQueryService (Drizzle)', () => {
         expect(stub.captured[2].sql).toBe('delete from "test_entity_tags" where "test_entity_tags"."test_entity_id" = $1')
         expect(stub.captured[3].sql).toContain('insert into "test_entity_tags"')
       })
+
+      it('should keep rows outside the relationFilter attached when replacing the collection', async () => {
+        stub.queueRows([PARENT_ROW], [RELATION_ROW(10, null)], [], [])
+
+        await service.setRelations<TestRelationDTO>('testRelations', 1, [10], {
+          relationFilter: { relationName: { eq: 'mine' } }
+        })
+
+        // An authorizer's relationFilter scopes what the caller may replace; without it in the detach, rows the
+        // caller cannot see would lose their foreign key (query-typeorm only removes the filtered existing rows).
+        const detach = stub.captured[2]
+        expect(detach.sql).toBe(
+          'update "test_relation" set "test_entity_id" = $1 where (("test_relation"."test_entity_id" = $2) and ("test_relation"."relation_name" = $3))'
+        )
+        expect(detach.params).toEqual([null, 1, 'mine'])
+      })
+
+      it('should scope the junction delete to the relationFilter for a through relation', async () => {
+        stub.queueRows([PARENT_ROW], [[7, 'mine']], [], [])
+
+        await service.setRelations<TestTagDTO>('tags', 1, [7], { relationFilter: { tagName: { eq: 'mine' } } })
+
+        const detach = stub.captured[2]
+        expect(detach.sql).toBe(
+          'delete from "test_entity_tags" where (("test_entity_tags"."test_entity_id" = $1) and ("test_entity_tags"."tag_id" in ' +
+            '(select "id" from "test_tag" where "test_tag"."tag_name" = $2)))'
+        )
+        expect(detach.params).toEqual([1, 'mine'])
+      })
     })
 
     describe('#removeRelations', () => {

@@ -4307,7 +4307,7 @@ __metadata:
     tslib: "npm:^2.8.1"
   peerDependencies:
     "@nestjs/common": ^10.0.0 || ^11.0.0
-    drizzle-orm: ">=1.0.0-rc.4 <1.0.0"
+    drizzle-orm: ^1.0.0-rc.4
   languageName: unknown
   linkType: soft
 

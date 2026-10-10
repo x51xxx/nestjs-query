@@ -10,6 +10,10 @@ is quoted it came from an Apple M-series laptop running Postgres 14 and MongoDB 
 rows with 600 000 sub tasks. Absolute values are machine-specific; the *ratios* and the *shapes* are what transfer.
 Where something is a judgement call rather than a measurement, it says so.
 
+The adapter comparisons (the second table in section 2, sections 3 and 4) were re-measured on the v11 line
+(`10.0.3` packages). The index experiment in section 1 and the before/after table in section 2 are database-level
+and come from the original run on `9.5.0`.
+
 ---
 
 ## 1. Index the columns you filter on — together, and in the right order
@@ -69,14 +73,17 @@ Measured at 200 000 rows, before and after the index fix from section 1:
 | **Before** — `(priority)` index | 9.4 ms | 19.2 ms | +9.8 ms |
 | **After** — `(completed, priority)` + `VACUUM` | 13.7 ms | 14.6 ms | **+0.9 ms** |
 
-With a covering index the count became almost free for the drizzle adapter. It did **not** become free for the
-others, and that difference only became visible once the shared heap-scan cost was removed:
+With a covering index the count became almost free for the drizzle adapter. What is left once the shared
+heap-scan cost is gone is what each adapter's count query adds. On the v11 line, median of three runs per cell:
 
 | adapter | `flat_query` | `+ totalCount` | overhead |
 | --- | --- | --- | --- |
-| drizzle | 13.7 | 14.6 | +0.9 ms |
-| typeorm | 14.4 | 34.2 | +19.8 ms |
-| sequelize | 13.2 | 40.4 | +27.2 ms |
+| drizzle | 9.1 | 14.2 | +5.1 ms |
+| typeorm | 7.8 | 12.3 | +4.5 ms |
+| sequelize | 8.7 | 20.3 | +11.6 ms |
+
+On `9.5.0` typeorm paid +19.8 ms here; on the v11 line it pays 2–5 ms per run, in line with drizzle. sequelize
+still pays 8–15 ms per run.
 
 **Recommendations**
 
@@ -96,14 +103,22 @@ other across the SQL adapters. Loading relations does not:
 
 | scenario | drizzle | typeorm | sequelize | mongoose | typegoose |
 | --- | --- | --- | --- | --- | --- |
-| `flat_query` | 13.7 | 14.4 | 13.2 | 168.1 | 184.1 |
-| `relation_has_many` | 49.0 | 62.5 | 80.9 | 67.1 | 101.3 |
-| `relation_many_to_many` | 92.1 | 30.6 | 66.2 | 57.5 | 87.4 |
+| `flat_query` | 9.1 | 7.8 | 8.7 | 138.8 | 148.2 |
+| `relation_has_many` | 18.4 | 41.0 | 57.9 | 52.9 | 193.7 |
+| `relation_many_to_many` | 15.4 | 13.6 | 48.4 | 45.6 | 91.5 |
 
-The spread between the flat row and the relation rows is the number to watch when changing relation code. Note the
-inconsistency in that `relation_many_to_many` row: 30.6 for typeorm against 62.5 on `relation_has_many` is not a
-difference the queries justify. **These are single runs and they carry real noise** — treat any one cell as
+200 000 rows on the v11 line; the SQL columns are the median of three runs per cell, the document columns a single
+run.
+
+The spread between the flat row and the relation rows is the number to watch when changing relation code. typeorm's
+two relation rows differ by about 3x (41.0 on has-many, 13.6 on many-to-many), and unlike a single noisy cell that
+gap reproduced in all three runs (35.9–46.8 against 13.4–24.2 ms). **Individual cells still carry real noise** —
+one run measured drizzle's `flat_query` at 31.8 ms against 6.3–9.1 in the others — so treat any one cell as
 indicative, not authoritative.
+
+typegoose's relation rows are also slower on the v11 line than on `9.5.0`: a same-machine A/B at 5 000 rows gave
+has-many 103 → 566 ms and many-to-many 63 → 144 ms, while mongoose on the same database did not regress. The cause
+has not been investigated.
 
 **Design implications**
 
@@ -122,15 +137,15 @@ indicative, not authoritative.
 
 Based on the same run. This is guidance, not a verdict — pick for correctness and ecosystem fit first.
 
-- **All three SQL adapters are equivalent for simple reads.** 13–14 ms at 200 k rows. Do not choose between them on
+- **All three SQL adapters are equivalent for simple reads.** 8–9 ms at 200 k rows. Do not choose between them on
   flat-query performance.
 - **They diverge on counting and on relations** (sections 2 and 3).
-- **The document adapters degrade far more steeply with data volume.** `flat_query` went from ~8 ms at 5 000 rows
-  to ~170–184 ms at 200 000; the SQL adapters went from ~4–7 ms to ~13–14 ms. Some of this is the engine and the
+- **The document adapters degrade far more steeply with data volume.** `flat_query` went from ~7–8 ms at 5 000 rows
+  to ~139–148 ms at 200 000; the SQL adapters went from ~3–4 ms to ~8–9 ms. Some of this is the engine and the
   driver rather than the adapter, and MongoDB with a matching compound index still examined only the 25 documents
   it returned — but the end-to-end cost is what your users experience.
 - **Benchmark at your real data volume.** At 5 000 rows this suite ranked typeorm fastest on relations; at 200 000
-  it ranked drizzle fastest. A benchmark run on a toy dataset can invert the answer.
+  it ranked drizzle fastest on has-many. A benchmark run on a toy dataset can invert the answer.
 
 ---
 

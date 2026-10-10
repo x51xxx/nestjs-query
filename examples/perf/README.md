@@ -89,42 +89,48 @@ the *ratio* between columns and the shape across scenarios.
 
 ### Why the dataset is large by default
 
-Apple M-series laptop, Postgres 14 and MongoDB 5 in Docker, `VUS=5`, `DURATION=8s`, `WARMUP=6s`. p95 in ms.
+Apple M-series laptop, Postgres 14 and MongoDB 5 in Docker, `VUS=5`, `DURATION=8s`, `WARMUP=6s`, nestjs-query
+`10.0.3` (the v11 line). p95 in ms, single runs.
 
 **5 000 todo items:**
 
 | scenario | drizzle | typeorm | sequelize | mongoose | typegoose |
 | --- | --- | --- | --- | --- | --- |
-| `flat_query` | 7.2 | 3.9 | 4.0 | 18.7 | 7.6 |
-| `flat_query_total_count` | 6.1 | 4.5 | 9.1 | 26.3 | 11.2 |
-| `relation_has_many` | 30.2 | **10.5** | 49.7 | 61.3 | 62.2 |
-| `relation_many_to_many` | 50.7 | **13.5** | 58.0 | 73.4 | 61.9 |
-| `aggregate` | 3.0 | 2.7 | 2.3 | 9.0 | 6.5 |
-| `mutation` | 3.7 | 13.3 | 3.9 | 3.4 | 2.8 |
+| `flat_query` | 4.4 | 3.4 | 3.7 | 8.1 | 7.3 |
+| `flat_query_total_count` | 7.5 | 4.0 | 4.1 | 11.6 | 10.9 |
+| `relation_has_many` | 20.8 | **10.7** | 48.9 | 60.3 | 202.5 |
+| `relation_many_to_many` | 16.8 | **11.2** | 54.4 | 45.1 | 140.9 |
+| `aggregate` | 3.4 | 3.2 | 2.3 | 8.3 | 26.8 |
+| `mutation` | 4.0 | 6.8 | 3.3 | 3.4 | 15.9 |
 
 **200 000 todo items:**
 
 | scenario | drizzle | typeorm | sequelize | mongoose | typegoose |
 | --- | --- | --- | --- | --- | --- |
-| `flat_query` | 9.4 | 10.1 | 10.7 | 242.1 | 224.5 |
-| `flat_query_total_count` | 19.2 | 22.9 | 22.5 | 429.9 | 423.6 |
-| `relation_has_many` | **24.4** | 44.8 | 40.8 | 85.4 | 70.3 |
-| `relation_many_to_many` | 26.6 | **11.0** | 46.6 | 56.1 | 72.1 |
-| `aggregate` | 25.4 | 25.6 | 28.2 | 245.9 | 250.5 |
-| `mutation` | 3.7 | 34.1 | 3.7 | 3.1 | 3.7 |
+| `flat_query` | 9.1 | 7.4 | 7.9 | 138.8 | 148.2 |
+| `flat_query_total_count` | 14.2 | 12.3 | 23.1 | 173.6 | 193.8 |
+| `relation_has_many` | **19.4** | 41.0 | 57.9 | 52.9 | 193.7 |
+| `relation_many_to_many` | 15.4 | **13.4** | 48.4 | 45.6 | 91.5 |
+| `aggregate` | 26.2 | 23.4 | 29.6 | 468.4 | 510.8 |
+| `mutation` | 10.7 | 57.5 | 5.9 | 2.8 | 6.0 |
 
 **The size changes the conclusion, which is why the default is 100 000 and not 5 000.** At 5k the three SQL
 adapters are within a few milliseconds of each other on flat queries and typeorm looks clearly fastest on
-relations. At 200k the SQL adapters have barely moved on flat queries (4–7 ms → 9–11 ms) while the document
-adapters have degraded by more than an order of magnitude (7–19 ms → 224–242 ms), and drizzle has overtaken
+relations. At 200k the SQL adapters have barely moved on flat queries (3–4 ms → 7–9 ms) while the document
+adapters have degraded by more than an order of magnitude (7–8 ms → 139–148 ms), and drizzle has overtaken
 typeorm on `relation_has_many`. A benchmark run at 5k would have reported the opposite ranking for the scenario
 this whole comparison exists to measure.
 
 ### Read these numbers carefully
 
-* **Single runs on a non-idle machine.** Variance of tens of percent is normal, and some cells clearly carry it:
-  typeorm's `relation_many_to_many` (11.0) against its `relation_has_many` (44.8) at the same size is not a
-  difference the queries justify. Re-run before concluding anything from a single cell.
+* **Single runs on a non-idle machine.** Variance of tens of percent is normal: across three 200k runs of the SQL
+  adapters, drizzle's `flat_query` ranged from 6.3 to 31.8 ms. Re-run before concluding anything from a single
+  cell. One gap that does reproduce in every run is typeorm's `relation_has_many` (35.9–46.8 ms) against its own
+  `relation_many_to_many` (13.4–24.2 ms).
+* **typegoose's relation scenarios are slower on the v11 line than on 9.5.0.** A same-machine A/B at 5k (mongoose
+  and typegoose only) gave has-many 103 → 566 ms and many-to-many 63 → 144 ms for typegoose, while mongoose on the
+  same database did not regress. The cause is in the adapter or its dependencies, not in this suite, and has not
+  been investigated.
 * **Compare within an engine group.** mongoose/typegoose run on MongoDB, the rest on PostgreSQL.
 * **An earlier version of this suite ran all scenarios concurrently and reported `sequelize` and `typegoose` as
   15–20x slower on relations.** That was an artefact: the scenarios were competing for one Node event loop. After

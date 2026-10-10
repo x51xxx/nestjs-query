@@ -405,6 +405,23 @@ describe('Drizzle adapter (e2e)', () => {
       expect(body.errors[0].message).toContain(`Unable to find TodoItemDTO with id: ${id}`)
     })
 
+    it('should treat an empty update as a no-op', async () => {
+      const body = await graphql(
+        app,
+        `
+          mutation {
+            updateOneTodoItem(input: { id: 1, update: {} }) {
+              id
+              title
+            }
+          }
+        `
+      )
+
+      expect(body.errors).toBeUndefined()
+      expect(body.data.updateOneTodoItem).toEqual({ id: '1', title: 'Create Nest App' })
+    })
+
     it('should report how many rows updateMany touched', async () => {
       const body = await graphql(
         app,

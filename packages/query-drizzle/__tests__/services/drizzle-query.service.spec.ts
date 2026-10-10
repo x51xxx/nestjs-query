@@ -280,6 +280,31 @@ describe('DrizzleQueryService', () => {
 
       await expect(service.updateOne(1, { stringType: 'bar' })).rejects.toThrow(NotFoundException)
     })
+
+    it('should return the entity unchanged for an empty update, without issuing an UPDATE', async () => {
+      stub.queueRows([ROW])
+
+      const result = await service.updateOne(1, {})
+
+      expect(result).toEqual(ENTITY)
+      expect(stub.captured).toHaveLength(1)
+      expect(stub.lastQuery().sql).toMatch(/^select /)
+    })
+
+    it('should still reject a missing entity for an empty update', async () => {
+      stub.queueRows([])
+
+      await expect(service.updateOne(1, {})).rejects.toThrow(NotFoundException)
+    })
+
+    it('should drop keys that are not columns instead of rendering an invalid SET', async () => {
+      stub.queueRows([[1, 'bar', 5, true, null]])
+
+      await service.updateOne(1, { stringType: 'bar', notAColumn: 'x' } as never)
+
+      expect(stub.lastQuery().sql).toContain('update "test_entity" set "string_type" = $1 where')
+      expect(stub.lastQuery().params).not.toContain('x')
+    })
   })
 
   describe('#updateMany', () => {
@@ -295,6 +320,12 @@ describe('DrizzleQueryService', () => {
 
     it('should reject when the update contains the id', async () => {
       await expect(service.updateMany({ id: 2 } as never, {})).rejects.toThrow('Id cannot be specified when updating')
+    })
+
+    it('should reject an update with no column fields without issuing SQL', async () => {
+      await expect(service.updateMany({}, { boolType: { is: true } })).rejects.toThrow(BadRequestException)
+      await expect(service.updateMany({ notAColumn: 'x' } as never, {})).rejects.toThrow(BadRequestException)
+      expect(stub.captured).toHaveLength(0)
     })
   })
 

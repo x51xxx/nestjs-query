@@ -5,7 +5,7 @@ import type { Relation, RelationsRecord, SQL, TableRelationalConfig, TablesRelat
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 
 import { isEmptyRelationsFilter, isRelationFilterReversed } from './drizzle-compat.utils'
-import { TableMeta } from './table.utils'
+import { hasOwn, TableMeta } from './table.utils'
 
 /** A `RelationsBuilderColumn` wrapper -- Drizzle stores `through` keys wrapped, with the column at `._.column`. */
 interface WrappedColumn {
@@ -110,7 +110,9 @@ export class RelationMeta<Entity, RelationDTO> {
     relations: TablesRelationalConfig,
     foreignKeySide?: Extract<ForeignKeySide, 'source' | 'target'>
   ) {
-    const relation = sourceTableConfig.relations[relationName] as Relation | undefined
+    const relation = hasOwn(sourceTableConfig.relations, relationName)
+      ? (sourceTableConfig.relations[relationName] as Relation)
+      : undefined
 
     if (!relation) {
       const available = Object.keys(sourceTableConfig.relations)

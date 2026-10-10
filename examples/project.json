@@ -4,7 +4,15 @@
   "sourceRoot": "examples/src",
   "projectType": "application",
   "tags": [],
-  "implicitDependencies": ["core", "query-graphql", "query-mongoose", "query-sequelize", "query-typegoose", "query-typeorm"],
+  "implicitDependencies": [
+    "core",
+    "query-drizzle",
+    "query-graphql",
+    "query-mongoose",
+    "query-sequelize",
+    "query-typegoose",
+    "query-typeorm"
+  ],
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint",

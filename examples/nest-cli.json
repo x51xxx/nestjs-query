@@ -56,6 +56,15 @@
         "tsConfigPath": "./tsconfig.json"
       }
     },
+    "drizzle": {
+      "type": "application",
+      "root": "drizzle",
+      "entryFile": "main",
+      "sourceRoot": "drizzle/src",
+      "compilerOptions": {
+        "tsConfigPath": "./tsconfig.json"
+      }
+    },
     "federation:gateway": {
       "type": "application",
       "root": "federation/gateway",

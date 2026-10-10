@@ -43,6 +43,9 @@ module.exports = {
           'persistence/typegoose/custom-service',
           'persistence/typegoose/serialization',
         ],
+        Drizzle: [
+          'persistence/drizzle/getting-started',
+        ],
       },
     ],
     GraphQL: [

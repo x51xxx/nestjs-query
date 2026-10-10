@@ -39,6 +39,7 @@ Nestjs-query is composed of multiple packages
 * [`@ptc-org/nestjs-query-sequelize`](https://github.com/tripss/nestjs-query/tree/master/packages/query-sequelize) - Package that implements a Sequelize service that can be used by itself or with the graphql resolver provided by `@ptc-org/nestjs-query-graphql`.
 * [`@ptc-org/nestjs-query-typegoose`](https://github.com/tripss/nestjs-query/tree/master/packages/query-typegoose) - Package that implements a Typegoose service that can be used by itself or with the graphql resolver provided by `@ptc-org/nestjs-query-graphql`.
 * [`@ptc-org/nestjs-query-typeorm`](https://github.com/tripss/nestjs-query/tree/master/packages/query-typeorm) - Package that implements a Typeorm service that can be used by itself or with the graphql resolver provided by `@ptc-org/nestjs-query-graphql`.
+* [`@ptc-org/nestjs-query-drizzle`](https://github.com/tripss/nestjs-query/tree/master/packages/query-drizzle) - Package that implements a Drizzle ORM (PostgreSQL) service that can be used by itself or with the graphql resolver provided by `@ptc-org/nestjs-query-graphql`.
 
 ## Development
 
